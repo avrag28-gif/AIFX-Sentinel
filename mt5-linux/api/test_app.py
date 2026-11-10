@@ -4,6 +4,7 @@ import unittest
 from fastapi.testclient import TestClient
 
 tmp = tempfile.NamedTemporaryFile(delete=False)
+tmp.close()
 os.environ["DB_PATH"] = tmp.name
 os.environ["AIFX_BRIDGE_TOKEN"] = "t" * 40
 from app import app
@@ -11,7 +12,10 @@ from app import app
 class BridgeTests(unittest.TestCase):
     def setUp(self):
         self.client = TestClient(app)
-        app.router.startup()
+        self.client.__enter__()
+
+    def tearDown(self):
+        self.client.__exit__(None, None, None)
 
     def test_health_is_dry_run(self):
         r = self.client.get("/health")
