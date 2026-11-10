@@ -1,0 +1,2 @@
+#!/usr/bin/env bash
+pgrep -f 'terminal64.exe' >/dev/null
