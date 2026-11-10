@@ -1,0 +1,107 @@
+name: AIFX Sentinel - Linux Docker CI
+
+on:
+  push:
+    branches:
+      - main
+      - feature/mt5-linux-docker-bridge
+    paths:
+      - "mt5-linux/**"
+      - ".github/workflows/mt5-linux-ci.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "mt5-linux/**"
+      - ".github/workflows/mt5-linux-ci.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aifx-mt5-linux-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python-tests:
+    name: Python bridge tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: mt5-linux/api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: mt5-linux/api/requirements.txt
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Run unit tests
+        env:
+          AIFX_BRIDGE_TOKEN: test-token-0123456789abcdef0123456789abcdef
+          DB_PATH: /tmp/aifx-ci.sqlite3
+        run: python -m unittest -v test_app.py
+
+  compose-validation:
+    name: Docker Compose validation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Prepare CI environment
+        working-directory: mt5-linux
+        run: cp .env.example .env
+      - name: Validate Compose configuration
+        working-directory: mt5-linux
+        run: docker compose config --quiet
+
+  docker-build:
+    name: Build container images
+    runs-on: ubuntu-latest
+    needs:
+      - python-tests
+      - compose-validation
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+      - name: Build API image
+        uses: docker/build-push-action@v6
+        with:
+          context: mt5-linux/api
+          push: false
+          tags: aifx-sentinel-api:ci
+      - name: Build MT5 Wine/Xvfb image
+        uses: docker/build-push-action@v6
+        with:
+          context: mt5-linux/terminal
+          push: false
+          tags: aifx-mt5-wine:ci
+
+  ci-result:
+    name: CI result
+    runs-on: ubuntu-latest
+    if: always()
+    needs:
+      - python-tests
+      - compose-validation
+      - docker-build
+    steps:
+      - name: Require all checks to pass
+        env:
+          TESTS: ${{ needs.python-tests.result }}
+          COMPOSE: ${{ needs.compose-validation.result }}
+          BUILD: ${{ needs.docker-build.result }}
+        run: |
+          echo "Python tests: $TESTS"
+          echo "Compose validation: $COMPOSE"
+          echo "Docker build: $BUILD"
+          test "$TESTS" = "success"
+          test "$COMPOSE" = "success"
+          test "$BUILD" = "success"
