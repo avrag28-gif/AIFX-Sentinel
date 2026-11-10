@@ -1,0 +1,43 @@
+services:
+  sentinel-api:
+    build: ./api
+    container_name: aifx-sentinel-api
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - sentinel-data:/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+  mt5-terminal:
+    build: ./terminal
+    container_name: aifx-mt5
+    restart: unless-stopped
+    depends_on:
+      sentinel-api:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DISPLAY: ":99"
+      API_URL: "http://sentinel-api:8000"
+      MT5_PATH: "/opt/mt5/terminal64.exe"
+    volumes:
+      - mt5-data:/opt/mt5
+    shm_size: "1gb"
+    init: true
+    healthcheck:
+      test: ["CMD", "/usr/local/bin/mt5-healthcheck"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 120s
+
+volumes:
+  sentinel-data:
+  mt5-data:
