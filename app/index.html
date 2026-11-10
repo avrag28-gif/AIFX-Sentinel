@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AIFX Sentinel</title>
+<style>
+:root{color-scheme:dark;font:15px system-ui;background:#0b1220;color:#e5edf7}body{max-width:1100px;margin:30px auto;padding:0 16px}h1{margin-bottom:4px}.muted{color:#94a3b8}.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px}.card{background:#111c2e;border:1px solid #26364d;border-radius:12px;padding:16px;margin:14px 0}button,input{background:#17263b;color:#e5edf7;border:1px solid #3b506d;border-radius:8px;padding:9px}button{cursor:pointer}table{width:100%;border-collapse:collapse}td,th{text-align:left;padding:8px;border-bottom:1px solid #29384e;font-size:13px}pre{white-space:pre-wrap;overflow-wrap:anywhere}.VALID,.BUY{color:#4ade80}.REJECT,.SELL{color:#fb7185}.WAIT{color:#facc15}
+</style></head><body>
+<h1>AIFX SENTINEL <small class="muted">V4 · Flexible signals + AI review</small></h1>
+<p class="muted">SMC · Forex / Crypto · local dashboard · broker execution disabled</p>
+<div class="card"><button onclick="refresh()">Refresh data</button> <button onclick="review()">Review latest with AI</button> <span id="status" class="muted">Loading…</span></div>
+<div class="grid">
+<section class="card"><h3>Market series</h3><select id="series"></select><button onclick="loadSeries()">Load</button><p><a id="csv" href="#">CSV export</a> · <a id="json" href="#">JSON export</a></p></section>
+<section class="card"><h3>Latest AI review</h3><pre id="review" class="muted">No review yet.</pre></section>
+<section class="card"><h3>Performance</h3><pre id="perf">—</pre></section>
+</div>
+<section class="card"><h3>Signal history</h3><div style="overflow:auto"><table><thead><tr><th>Time</th><th>Direction</th><th>Bull</th><th>Bear</th><th>AI</th><th>Outcome</th></tr></thead><tbody id="signals"></tbody></table></div></section>
+<section class="card"><h3>Recent candles</h3><div style="overflow:auto"><table><thead><tr><th>Time</th><th>Open</th><th>High</th><th>Low</th><th>Close</th></tr></thead><tbody id="candles"></tbody></table></div></section>
+<p class="muted">AI confidence is not win probability. VALID is only an AI technical review result, not a profit guarantee or broker instruction.</p>
+<script>
+let current={symbol:"",timeframe:""};
+const $=id=>document.getElementById(id);
+async function api(url,opts){let r=await fetch(url,opts);let d=await r.json();if(!r.ok)throw Error(d.detail||r.statusText);return d}
+async function refresh(){try{let d=await api("/api/summary");$("status").textContent=d.total_candles+" candles · "+d.total_signals+" signals";let s=$("series");let old=s.value;s.innerHTML="";d.series.forEach(x=>{let o=document.createElement("option");o.value=x.symbol+"|"+x.timeframe;o.textContent=x.symbol+" / "+x.timeframe;s.append(o)});if(old)s.value=old;if(s.value)await loadSeries()}catch(e){$("status").textContent=e.message}}
+async function loadSeries(){let v=$("series").value;if(!v)return;let [symbol,timeframe]=v.split("|");current={symbol,timeframe};$("csv").href="/export/csv?symbol="+symbol+"&timeframe="+timeframe;$("json").href="/export/json?symbol="+symbol+"&timeframe="+timeframe;
+let [s,c,p]=await Promise.all([api("/api/signals?symbol="+symbol+"&timeframe="+timeframe),api("/api/candles?symbol="+symbol+"&timeframe="+timeframe),api("/api/performance?symbol="+symbol+"&timeframe="+timeframe)]);
+$("signals").innerHTML=s.signals.map(x=>"<tr><td>"+new Date(x.t).toLocaleString()+"</td><td class='"+x.direction+"'>"+x.direction+"</td><td>"+x.bull+"</td><td>"+x.bear+"</td><td class='"+(x.ai_decision||"WAIT")+"'>"+(x.ai_decision||"PENDING")+"</td><td>"+(x.outcome||"—")+"</td></tr>").join("");
+$("candles").innerHTML=c.candles.map(x=>"<tr><td>"+new Date(x.t).toLocaleString()+"</td><td>"+x.open+"</td><td>"+x.high+"</td><td>"+x.low+"</td><td>"+x.close+"</td></tr>").join("");
+$("perf").textContent=JSON.stringify(p,null,2)}
+async function review(){if(!current.symbol){$("review").textContent="Select a series first.";return}try{let d=await api("/api/score?symbol="+current.symbol+"&timeframe="+current.timeframe);$("review").textContent=JSON.stringify(d,null,2);await loadSeries()}catch(e){$("review").textContent=e.message}}
+refresh();
+</script></body></html>
