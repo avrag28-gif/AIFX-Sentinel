@@ -11,12 +11,17 @@ trap cleanup EXIT
 wineboot --init
 if [ ! -f /opt/mt5/terminal64.exe ]; then
   if [ -z "${MT5_INSTALLER_URL:-}" ]; then
-    echo "MT5 not installed. Set MT5_INSTALLER_URL or mount a prepared MT5 installation into /opt/mt5." >&2
+    echo "MT5 not installed. Set MT5_INSTALLER_URL to a direct broker/MetaQuotes installer URL." >&2
     exit 2
   fi
   wget -O /tmp/mt5setup.exe "$MT5_INSTALLER_URL"
   wine /tmp/mt5setup.exe /auto
-  echo "Installer completed. Ensure terminal64.exe is available at /opt/mt5/terminal64.exe."
+  INSTALLED_EXE="$(find "$WINEPREFIX/drive_c" -type f -iname terminal64.exe -print -quit || true)"
+  if [ -z "$INSTALLED_EXE" ]; then
+    echo "Installer ran but terminal64.exe was not found. Prepare the terminal files manually in the mt5-data volume at /opt/mt5." >&2
+    exit 3
+  fi
+  cp -a "$(dirname "$INSTALLED_EXE")/." /opt/mt5/
 fi
 if [ ! -f /opt/mt5/terminal64.exe ]; then
   echo "terminal64.exe not found at /opt/mt5/terminal64.exe" >&2
