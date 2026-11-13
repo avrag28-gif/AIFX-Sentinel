@@ -2,7 +2,7 @@
 
 ## Direct Google Colab
 Open this notebook directly:
-https://colab.research.google.com/github/avrag28-gif/AIFX-Sentinel/blob/feature/xauusd-colab-pipeline/notebooks/AIFX_XAUUSD_Hybrid_Ensemble.ipynb
+https://colab.research.google.com/github/avrag28-gif/AIFX-Sentinel/blob/xauusd-colab-pipeline/notebooks/AIFX_XAUUSD_Hybrid_Ensemble.ipynb
 
 ## What it does
 - Colab T4 GPU setup and Google Drive mount
