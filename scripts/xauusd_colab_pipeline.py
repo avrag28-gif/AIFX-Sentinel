@@ -196,16 +196,19 @@ def train_all():
     (ART/"metrics_test.json").write_text(json.dumps(metrics,indent=2))
     # BID/ASK horizon backtest; signal after candle close, enter next minute open, exit at t+15 close.
     qte=qte.copy(); qte.time=pd.to_datetime(qte.time,utc=True)
+    quote_map=qte.set_index("time")
     test_rows=te.loc[tmasks].copy().reset_index(drop=True)
     test_rows["p_down"],test_rows["p_flat"],test_rows["p_up"]=probs[:,0],probs[:,1],probs[:,2]
-    test_rows=test_rows.merge(qte[["time","open_bid","open_ask","close_bid","close_ask"]],on="time",how="left").set_index("time")
+    test_rows=test_rows.set_index("time").sort_index()
     trades=[]; threshold=.55
     for ts,r in test_rows.iterrows():
         side="BUY" if r.p_up>=threshold else ("SELL" if r.p_down>=threshold else None)
         if side is None: continue
         ent=ts+pd.Timedelta(minutes=1); ext=ts+pd.Timedelta(minutes=15)
-        if ent not in test_rows.index or ext not in test_rows.index: continue
-        er=test_rows.loc[ent]; xr=test_rows.loc[ext]
+        # Fill quotes are looked up in the full M1 BID/ASK stream, not the
+        # stride-sampled prediction rows, so the next-minute entry is available.
+        if ent not in quote_map.index or ext not in quote_map.index: continue
+        er=quote_map.loc[ent]; xr=quote_map.loc[ext]
         if side=="BUY": entry=float(er.open_ask); exitp=float(xr.close_bid); pnl=exitp-entry
         else: entry=float(er.open_bid); exitp=float(xr.close_ask); pnl=entry-exitp
         trades.append({"time":ts,"side":side,"entry":entry,"exit":exitp,"pnl_price":pnl})
